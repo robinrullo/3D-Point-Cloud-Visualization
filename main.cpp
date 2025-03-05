@@ -13,8 +13,16 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
 #include <GL/glut.h>
+
+
+#ifndef STB_IMAGE_WRITE_IMPLEMENTATION
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
+#endif
 //********************************************************
 using namespace std;
+
+string PROJECT_PATH = "/Users/rrullo/CLionProjects/generation_enrichissement_environnement2d3d/";
 
 template<typename T>
 struct Point3D {
@@ -52,52 +60,79 @@ void Keyboard(unsigned char, int, int);
 
 void ShowInfos();
 
-//vue de face
-float angle = 92;
-float vitesse = 0.0;
-char axe = 'y';
-int perspective = 120;
-double scale = 200;
+void SaveFrameBufferAsImage();
 
+// VUE
+int WINDOW_WIDTH = 640;
+int WINDOW_HEIGHT = 400;
+float ANGLE = 92;
+float SPEED = .2;
+char AXIS = 'y';
+int PERSPECTIVE = 60;
+double SCALE = 300;
+int NUMBER_OF_TRIANGLES = 60;
 
-void drawTriangles(int nX) {
-    int nY = round((Ymax - Ymin) / (Xmax - Xmin) * nX);
+int nX = 0, nY = 0;
+float tileSizeX = 0, tileSizeY = 0;
+vector<vector<float> > heights;
+vector<vector<array<float, 3> > > colors;
 
-    float tileSizeX = (Xmax - Xmin) / nX;
-    float tileSizeY = (Ymax - Ymin) / nY;
+/**
+ * Calcul de la hauteur moyenne et de la couleur moyenne des triangles
+ */
+void ComputeTriangles() {
+    double xLength = Xmax - Xmin;
+    double yLength = Ymax - Ymin;
 
+    double minLength = min(xLength, yLength);
+    double tileSize = minLength / NUMBER_OF_TRIANGLES;
 
-    std::vector<std::vector<float> > heights(nX + 1, std::vector<float>(nY + 1, Zmin));
-    std::vector<std::vector<std::array<float, 3> > > colors(
-        nX + 1, std::vector<std::array<float, 3> >(nY + 1, {0, 0, 0}));
-    std::vector<std::vector<int> > count(nX + 1, std::vector<int>(nY + 1, 0));
+    nX = ceil(xLength / tileSize);
+    nY = ceil(yLength / tileSize);
 
+    tileSizeX = (Xmax - Xmin) / nX;
+    tileSizeY = tileSizeX;
 
-    // Remplir les hauteurs à partir des points du nuage
-    for (const auto &p: nuage) {
-        const int i = (p.x - Xmin) / tileSizeX;
-        const int j = (p.y - Ymin) / tileSizeY;
-        if (i >= 0 && i <= nX && j >= 0 && j <= nY) {
-            heights[i][j] += p.z;
-            colors[i][j][0] += p.r / 255.0f;
-            colors[i][j][1] += p.g / 255.0f;
-            colors[i][j][2] += p.b / 255.0f;
-            count[i][j]++;
+    heights.resize(nX + 1, vector<float>(nY + 1, 0));
+    colors.resize(nX + 1, vector<array<float, 3> >(nY + 1, {0, 0, 0}));
+
+    vector numberOfTriangles(nX + 1, vector<int>(nY + 1, 0));
+
+    for (int i = 0; i <= nX; i++) {
+        for (int j = 0; j <= nY; j++) {
+            float xMinCell = Xmin + i * tileSizeX;
+            float xMaxCell = xMinCell + tileSizeX;
+            float yMinCell = Ymin + j * tileSizeY;
+            float yMaxCell = yMinCell + tileSizeY;
+
+            for (const auto &p: nuage) {
+                if (p.x >= xMinCell && p.x < xMaxCell && p.y >= yMinCell && p.y < yMaxCell) {
+                    heights[i][j] += p.z;
+                    colors[i][j][0] += p.r / 255.0f;
+                    colors[i][j][1] += p.g / 255.0f;
+                    colors[i][j][2] += p.b / 255.0f;
+                    numberOfTriangles[i][j]++;
+                }
+            }
         }
     }
 
     for (int i = 0; i <= nX; i++) {
         for (int j = 0; j <= nY; j++) {
-            if (count[i][j] > 0) {
-                heights[i][j] /= count[i][j] + 1; // TODO: pourquoi +1 ?
-                colors[i][j][0] /= count[i][j];
-                colors[i][j][1] /= count[i][j];
-                colors[i][j][2] /= count[i][j];
+            if (numberOfTriangles[i][j] > 0) {
+                heights[i][j] /= numberOfTriangles[i][j];
+                colors[i][j][0] /= numberOfTriangles[i][j];
+                colors[i][j][1] /= numberOfTriangles[i][j];
+                colors[i][j][2] /= numberOfTriangles[i][j];
             }
         }
     }
+}
 
-    // Dessiner la reconstruction en triangles
+/**
+ * Dessin des triangles
+ */
+void DrawTriangles() {
     glBegin(GL_TRIANGLES);
     for (int i = 0; i < nX; i++) {
         for (int j = 0; j < nY; j++) {
@@ -113,15 +148,21 @@ void drawTriangles(int nX) {
             float z3 = heights[i][j + 1];
             float z4 = heights[i + 1][j + 1];
 
+            if (z1 == 0 || z2 == 0 || z3 == 0 || z4 == 0) {
+                continue;
+            }
+
             // Normalisation des coordonnées
-            float normX1 = (x1 - barycentre.x) / scale;
-            float normX2 = (x2 - barycentre.x) / scale;
-            float normY1 = (y1 - barycentre.y) / scale;
-            float normY2 = (y2 - barycentre.y) / scale;
-            float normZ1 = (z1 - barycentre.z) / scale;
-            float normZ2 = (z2 - barycentre.z) / scale;
-            float normZ3 = (z3 - barycentre.z) / scale;
-            float normZ4 = (z4 - barycentre.z) / scale;
+            float normX1 = (x1 - barycentre.x) / SCALE;
+            float normX2 = (x2 - barycentre.x) / SCALE;
+            float normY1 = (y1 - barycentre.y) / SCALE;
+            float normY2 = (y2 - barycentre.y) / SCALE;
+            float normZ1 = (z1 - barycentre.z) / SCALE;
+            float normZ2 = (z2 - barycentre.z) / SCALE;
+            float normZ3 = (z3 - barycentre.z) / SCALE;
+            float normZ4 = (z4 - barycentre.z) / SCALE;
+
+            //cout << "Triangle heights: " << z1 << ", " << z2 << ", " << z3 << ", " << z4 << endl;
 
             // Récupérer la couleur de la case
             std::array<float, 3> color = colors[i][j];
@@ -141,7 +182,7 @@ void drawTriangles(int nX) {
     glEnd();
 }
 
-void drawCloudPoints() {
+void DrawPointCloud() {
     glEnable(GL_COLOR_MATERIAL);
 
     //3D point cloud
@@ -149,66 +190,67 @@ void drawCloudPoints() {
     glBegin(GL_POINTS);
     glColor3d(0, 0, 1);
     for (auto j = nuage.begin(); j != nuage.end(); ++j) {
-        glVertex3f((j->x - barycentre.x) / scale, (j->z - barycentre.z) / scale,
-                   (j->y - barycentre.y) / scale);
+        glVertex3f((j->x - barycentre.x) / SCALE, (j->z - barycentre.z) / SCALE,
+                   (j->y - barycentre.y) / SCALE);
     }
     glEnd();
 }
 
-void drawBox() {
+void DrawBoundingBox() {
     //bounding box 3D
     glPointSize(2);
     glBegin(GL_LINE_STRIP);
     glColor3d(1, 1, 1);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
-    glVertex3f((Xmax - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
-    glVertex3f((Xmax - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymax - barycentre.y) / scale);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymax - barycentre.y) / scale);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
+    glVertex3f((Xmax - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
+    glVertex3f((Xmax - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymax - barycentre.y) / SCALE);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymax - barycentre.y) / SCALE);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
     // Retour au premier point
     glEnd();
 
     // Dessus (face supérieure)
     glBegin(GL_LINE_STRIP);
 
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
-    glVertex3f((Xmax - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
-    glVertex3f((Xmax - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymax - barycentre.y) / scale);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymax - barycentre.y) / scale);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
+    glVertex3f((Xmax - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
+    glVertex3f((Xmax - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymax - barycentre.y) / SCALE);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymax - barycentre.y) / SCALE);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
     // Retour au premier point
 
     glEnd();
 
     // Liaisons entre la base et le dessus
     glBegin(GL_LINE_STRIP);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
     glEnd();
 
     glBegin(GL_LINE_STRIP);
-    glVertex3f((Xmax - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
-    glVertex3f((Xmax - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymin - barycentre.y) / scale);
+    glVertex3f((Xmax - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
+    glVertex3f((Xmax - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymin - barycentre.y) / SCALE);
     glEnd();
 
     glBegin(GL_LINE_STRIP);
-    glVertex3f((Xmax - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymax - barycentre.y) / scale);
-    glVertex3f((Xmax - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymax - barycentre.y) / scale);
+    glVertex3f((Xmax - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymax - barycentre.y) / SCALE);
+    glVertex3f((Xmax - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymax - barycentre.y) / SCALE);
     glEnd();
 
     glBegin(GL_LINE_STRIP);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmin - barycentre.z) / scale, (Ymax - barycentre.y) / scale);
-    glVertex3f((Xmin - barycentre.x) / scale, (Zmax - barycentre.z) / scale, (Ymax - barycentre.y) / scale);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmin - barycentre.z) / SCALE, (Ymax - barycentre.y) / SCALE);
+    glVertex3f((Xmin - barycentre.x) / SCALE, (Zmax - barycentre.z) / SCALE, (Ymax - barycentre.y) / SCALE);
     glEnd();
 }
 
-void drawCenter() {
+void DrawCenterPoint() {
     glPointSize(5);
     glBegin(GL_POINTS);
     glColor3d(1, 0, 0);
     glVertex3f(0, 0, 0);
     glEnd();
 }
+
 
 void Display() {
     glClearColor(0, 0, 0, 0);
@@ -218,20 +260,22 @@ void Display() {
     glLoadIdentity();
     gluLookAt(4, 3, 3, 0, 0, 0, 0, 1, 0);
 
-    switch (axe) {
-        case 'x': glRotated(angle, 1, 0, 0);
+    switch (AXIS) {
+        case 'x': glRotated(ANGLE, 1, 0, 0);
             break;
-        case 'y': glRotated(angle, 0, 1, 0);
+        case 'y': glRotated(ANGLE, 0, 1, 0);
             break;
-        case 'z': glRotated(angle, 0, 0, 1);
+        case 'z': glRotated(ANGLE, 0, 0, 1);
             break;
+        default: break;
     }
 
 
-    drawCenter();
-    //drawCloudPoints();
-    drawBox();
-    drawTriangles(40);
+    DrawCenterPoint();
+    DrawPointCloud();
+    DrawBoundingBox();
+    DrawTriangles();
+
     glutSwapBuffers();
 }
 
@@ -240,7 +284,7 @@ void Init(int *pargc, char **argv) {
     glutInit(pargc, argv);
 
     glutInitDisplayMode(GLUT_RGBA | GLUT_DOUBLE | GLUT_DEPTH);
-    glutInitWindowSize(800, 600);
+    glutInitWindowSize(WINDOW_WIDTH, WINDOW_HEIGHT);
     glutInitWindowPosition(40, 40);
 
     glutCreateWindow("3D Point Cloud Visualization (ECM)");
@@ -253,12 +297,12 @@ void Reshape(int width, int height) {
     glViewport(0, 0, width, height);
     glMatrixMode(GL_PROJECTION);
     glLoadIdentity();
-    gluPerspective(perspective, static_cast<float>(width) / height, 1, 10);
+    gluPerspective(PERSPECTIVE, static_cast<float>(width) / height, 1, 10);
 }
 
 void Idle() {
-    angle = angle + vitesse;
-    if (angle > 360) angle = 0;
+    ANGLE = ANGLE + SPEED;
+    if (ANGLE > 360) ANGLE = 0;
     glutPostRedisplay();
 }
 
@@ -267,55 +311,58 @@ void Keyboard(unsigned char key, int x, int y) {
         case 27: // 'ESC'
             printf("\nFermeture en cours...\n");
             exit(0);
-            break;
 
         case 120: // 'x'
-            axe = 'x';
+            AXIS = 'x';
             ShowInfos();
             break;
 
         case 121: // 'y'
-            axe = 'y';
+            AXIS = 'y';
             ShowInfos();
             break;
 
         case 122: // 'z'
-            axe = 'z';
+            AXIS = 'z';
             ShowInfos();
             break;
 
         case 42: // '*'
-            vitesse = -vitesse;
+            SPEED = -SPEED;
             ShowInfos();
             break;
 
         case 43: // '+'
-            if (vitesse < 359.9) vitesse += 0.1;
+            if (SPEED < 359.9) SPEED += .1;
             ShowInfos();
             break;
 
         case 45: // '-'
-            if (vitesse > 0.1) vitesse -= 0.1;
+            if (SPEED > 0.1) SPEED -= .1;
             ShowInfos();
             break;
 
         case 48: // '0'
-            perspective--;
-            Reshape(640, 480);
+            PERSPECTIVE--;
+            Reshape(WINDOW_WIDTH, WINDOW_HEIGHT);
             ShowInfos();
             break;
 
         case 49: // '1'
-            perspective++;
-            Reshape(640, 480);
+            PERSPECTIVE++;
+            Reshape(WINDOW_WIDTH, WINDOW_HEIGHT);
             ShowInfos();
             break;
 
+        case 115: // Sauvegarde de l'image
+            SaveFrameBufferAsImage();
+            break;
+
         case 127: // 'DEL'
-            axe = 'y';
-            vitesse = 0.1;
-            perspective = 40; /*45*/
-            Reshape(640, 480);
+            AXIS = 'y';
+            SPEED = .2;
+            PERSPECTIVE = 60;
+            Reshape(WINDOW_WIDTH, WINDOW_HEIGHT);
             ShowInfos();
             break;
         default: break;
@@ -332,88 +379,113 @@ void ShowInfos() {
     printf("x, y et z pour changer l'axe de rotation\n");
     printf("DEL pour restaurer les parametres par defaut\n");
     printf("ESC pour quitter\n\n");
-    printf("Vitesse de rotation : %.1f\n", vitesse);
-    printf("Axe de rotation : %c\n", axe);
-    printf("Perspective : %d\n", perspective);
+    printf("Vitesse de rotation : %.1f\n", SPEED);
+    printf("Axe de rotation : %c\n", AXIS);
+    printf("Perspective : %d\n", PERSPECTIVE);
+}
+
+int imageCounter = 1; // Compteur d'images
+void SaveFrameBufferAsImage() {
+    const int width = WINDOW_WIDTH; // Largeur de la fenêtre
+    const int height = WINDOW_HEIGHT; // Hauteur de la fenêtre
+    std::vector<unsigned char> pixels(width * height * 3);
+
+    glReadPixels(0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, pixels.data());
+
+    // OpenGL stocke l'image à l'envers, il faut inverser les lignes
+    std::vector<unsigned char> flippedPixels(width * height * 3);
+    for (int i = 0; i < height; i++) {
+        memcpy(&flippedPixels[i * width * 3], &pixels[(height - i - 1) * width * 3], width * 3);
+    }
+
+    // Générer le nom du fichier
+    const std::string filename = PROJECT_PATH + std::to_string(imageCounter++) + ".png";
+
+    // Sauvegarder l'image
+    stbi_write_png(filename.c_str(), width, height, 3, flippedPixels.data(), width * 3);
+
+    std::cout << "Image enregistree : " << filename << std::endl;
 }
 
 //********************************************************
 
-int main(int argc, char **argv) {
-
+void LoadPointCloud(const string &filename) {
     int numberOfPointsLoaded = 0;
     string line;
-    double a, b, c, d, e, f, g, h;
-    nuage.reserve(400000);
+    double x, y, z, red, green, blue, classification, pointSourceId;
 
-    ifstream file(
-        "/Users/rrullo/CLionProjects/generation_enrichissement_environnement2d3d/st-helens.las.segmented.subsampled.subsampled.txt");
+    ifstream file(filename);
     if (!file) {
-        cout << "Fichier inexistant" << endl;
-    } else {
-        while (!file.eof()) {
-            // Lecture d'une ligne du fichier XYZ (un point)
-            getline(file, line);
-            // File Header: X Y Z R G B Classification Point_Source_ID
-            sscanf(line.c_str(), "%lf %lf %lf %lf %lf %lf %lf %lf", &a, &b, &c, &d, &e, &f, &g, &h);
-            cout << "a=" << a << ", b=" << b << ", c=" << c << ", d=" << d << ", e=" << e << ", f=" << f << ", g=" << g
-                    << ", h=" << h << endl;
+        cout << "Erreur: Le fichier n'existe pas" << endl;
+        exit(1);
+    }
 
-            // Création du point
-            Point3D<double> pointTemp;
-            pointTemp.x = a;
-            pointTemp.y = b;
-            pointTemp.z = c;
-            pointTemp.r = d;
-            pointTemp.g = e;
-            pointTemp.b = f;
+    const int linesCount = std::count(std::istreambuf_iterator<char>(file),
+                                      std::istreambuf_iterator<char>(), '\n');
+    nuage.reserve(linesCount + 1);
 
+    file.seekg(0);
 
-            // Mise à jour de la bounding box
-            if (numberOfPointsLoaded == 0) {
-                Xmin = Xmax = pointTemp.x;
-                Ymin = Ymax = pointTemp.y;
-                Zmin = Zmax = pointTemp.z;
-            } else {
-                if (pointTemp.x < Xmin) Xmin = pointTemp.x;
-                if (pointTemp.y < Ymin) Ymin = pointTemp.y;
-                if (pointTemp.z < Zmin) Zmin = pointTemp.z;
-                if (pointTemp.x > Xmax) Xmax = pointTemp.x;
-                if (pointTemp.y > Ymax) Ymax = pointTemp.y;
-                if (pointTemp.z > Zmax) Zmax = pointTemp.z;
-            }
+    while (!file.eof()) {
+        // Lecture d'une ligne du fichier ASCII Cloud File
+        getline(file, line);
+        sscanf(line.c_str(), "%lf %lf %lf %lf %lf %lf %lf %lf", &x, &y, &z, &red, &green, &blue, &classification,
+               &pointSourceId);
 
-            // Calcul du barycentre
-            barycentre.x += pointTemp.x;
-            barycentre.y += pointTemp.y;
-            barycentre.z += pointTemp.z;
+        // Création du point
+        Point3D<double> pointTemp(x, y, z, red, green, blue);
 
-            // Ajout du point au nuage
-            nuage.push_back(pointTemp);
-
-
-            // Incrémentation du nombre de points chargés
-            ++numberOfPointsLoaded;
+        // Mise à jour de la bounding box
+        if (numberOfPointsLoaded == 0) {
+            Xmin = Xmax = pointTemp.x;
+            Ymin = Ymax = pointTemp.y;
+            Zmin = Zmax = pointTemp.z;
+        } else {
+            if (pointTemp.x < Xmin) Xmin = pointTemp.x;
+            if (pointTemp.y < Ymin) Ymin = pointTemp.y;
+            if (pointTemp.z < Zmin) Zmin = pointTemp.z;
+            if (pointTemp.x > Xmax) Xmax = pointTemp.x;
+            if (pointTemp.y > Ymax) Ymax = pointTemp.y;
+            if (pointTemp.z > Zmax) Zmax = pointTemp.z;
         }
 
         // Calcul du barycentre
-        barycentre.x /= numberOfPointsLoaded;
-        barycentre.y /= numberOfPointsLoaded;
-        barycentre.z /= numberOfPointsLoaded;
+        barycentre.x += pointTemp.x;
+        barycentre.y += pointTemp.y;
+        barycentre.z += pointTemp.z;
+
+        // Ajout du point au nuage
+        nuage.push_back(pointTemp);
+
+
+        // Incrémentation du nombre de points chargés
+        ++numberOfPointsLoaded;
     }
+
+    // Calcul du barycentre
+    barycentre.x /= numberOfPointsLoaded;
+    barycentre.y /= numberOfPointsLoaded;
+    barycentre.z /= numberOfPointsLoaded;
     file.close();
-    cout << "Fichier xyz traite" << endl;
-    cout << "Nuage de " << numberOfPointsLoaded << " point(s)" << endl;
+
+
+    cout << "Fichier charge: " << filename << endl;
+    cout << "Nombre de points : " << numberOfPointsLoaded << endl;
     cout << "Xmin : " << Xmin << endl;
-    cout << "Ymin : " << Ymin << endl;
-    cout << "Zmin : " << Zmin << endl;
     cout << "Xmax : " << Xmax << endl;
+    cout << "Ymin : " << Ymin << endl;
     cout << "Ymax : " << Ymax << endl;
+    cout << "Zmin : " << Zmin << endl;
     cout << "Zmax : " << Zmax << endl;
+}
 
-
+int main(int argc, char **argv) {
+    LoadPointCloud(
+        PROJECT_PATH + "st-helens.las.segmented.subsampled.xyz");
+    ComputeTriangles();
 
     Init(&argc, argv);
+
     glutDisplayFunc(Display);
 
     glutReshapeFunc(Reshape);
