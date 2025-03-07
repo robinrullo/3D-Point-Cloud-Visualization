@@ -30,39 +30,36 @@ Avant de compiler et d'exécuter le projet, assurez-vous d'avoir installé les b
 
 - **OpenGL**
 - **GLUT** (`freeglut` recommandé)
-- **GLEW**
 
 Sous **Linux**, vous pouvez les installer avec :
 
 ```bash
 sudo apt update
-sudo apt install freeglut3-dev libglew-dev
+sudo apt install freeglut3-dev
 ```
 
 Sous MacOS, utilisez Homebrew :
 
 ```bash
-brew install freeglut glew
+brew install freeglut
 ```
-
-Sous Windows, installez GLFW et GLEW manuellement.
 
 ## 🎮 Contrôles
 
-| Touche | Action                            |
-|:------:|-----------------------------------|
-|  `x`   | Rotation autour de l’axe X        |
-|  `y`   | Rotation autour de l’axe Y        |
-|  `z`   | Rotation autour de l’axe Z        |
-|  `+`   | Augmenter la vitesse de rotation  | 
-|  `-`   | Diminuer la vitesse de rotation   | 
-|  `*`   | Inverser le sens de rotation      |
-|  `1`   | Augmenter la perspective          |
-|  `0`   | Diminuer la perspective           |
-|  `s`   | Sauvegarder une image de la scène |
-| `DEL`  | Réinitialiser les paramètres      |
-| `ESC`  | Quitter l’application             |
-
+| Touche | Action                                       |
+|:------:|----------------------------------------------|
+|  `h`   | Affiche une carte de chaleur sur le maillage |
+|  `x`   | Rotation autour de l’axe X                   |
+|  `y`   | Rotation autour de l’axe Y                   |
+|  `z`   | Rotation autour de l’axe Z                   |
+|  `+`   | Augmenter la vitesse de rotation             | 
+|  `-`   | Diminuer la vitesse de rotation              | 
+|  `*`   | Inverser le sens de rotation                 |
+|  `1`   | Augmenter la perspective                     |
+|  `0`   | Diminuer la perspective                      |
+|  `s`   | Sauvegarder une image de la scène            |
+| `DEL`  | Réinitialiser les paramètres                 |
+| `ESC`  | Quitter l’application                        |
 
 ## 📍 Chargement des Données
 

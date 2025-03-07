@@ -5,13 +5,10 @@
 //Librairie STL
 #include <iostream>
 #include <vector>
-#include <numeric>
 #include <fstream>
 #include <string>
 #include <stdlib.h>
 //********************************************************
-#include <GL/glew.h>
-#include <GLFW/glfw3.h>
 #include <GL/glut.h>
 
 
@@ -44,6 +41,7 @@ struct Point3D {
 Point3D<double> pointTemp, barycentre;
 vector<Point3D<double> > nuage;
 double Xmin, Ymin, Zmin, Xmax, Ymax, Zmax;
+bool heatmap_mode = false;
 
 //*********************************************
 //fonctions d'affichage des données avec GLUT
@@ -76,6 +74,7 @@ int nX = 0, nY = 0;
 float tileSizeX = 0, tileSizeY = 0;
 vector<vector<float> > heights;
 vector<vector<array<float, 3> > > colors;
+vector<vector<array<float, 3> > > heatmapColors;
 
 /**
  * Calcul de la hauteur moyenne et de la couleur moyenne des triangles
@@ -95,6 +94,7 @@ void ComputeTriangles() {
 
     heights.resize(nX + 1, vector<float>(nY + 1, 0));
     colors.resize(nX + 1, vector<array<float, 3> >(nY + 1, {0, 0, 0}));
+    heatmapColors.resize(nX + 1, vector<array<float, 3> >(nY + 1, {0, 0, 0}));
 
     vector numberOfTriangles(nX + 1, vector<int>(nY + 1, 0));
 
@@ -124,6 +124,11 @@ void ComputeTriangles() {
                 colors[i][j][0] /= numberOfTriangles[i][j];
                 colors[i][j][1] /= numberOfTriangles[i][j];
                 colors[i][j][2] /= numberOfTriangles[i][j];
+
+                float norm = (heights[i][j] - Zmin) / (Zmax - Zmin);
+                heatmapColors[i][j][0] = norm;
+                heatmapColors[i][j][1] = 0;
+                heatmapColors[i][j][2] = 1 - norm;
             }
         }
     }
@@ -162,10 +167,12 @@ void DrawTriangles() {
             float normZ3 = (z3 - barycentre.z) / SCALE;
             float normZ4 = (z4 - barycentre.z) / SCALE;
 
-            //cout << "Triangle heights: " << z1 << ", " << z2 << ", " << z3 << ", " << z4 << endl;
 
             // Récupérer la couleur de la case
             std::array<float, 3> color = colors[i][j];
+            if (heatmap_mode) {
+                color = heatmapColors[i][j];
+            }
             glColor3f(color[0], color[1], color[2]);
 
             // Triangulation : 1er triangle
@@ -354,9 +361,16 @@ void Keyboard(unsigned char key, int x, int y) {
             ShowInfos();
             break;
 
+        case 104: // 'h'
+            heatmap_mode = !heatmap_mode;
+            glutPostRedisplay();
+            ShowInfos();
+            break;
+
         case 115: // Sauvegarde de l'image
             SaveFrameBufferAsImage();
             break;
+
 
         case 127: // 'DEL'
             AXIS = 'y';
