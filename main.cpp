@@ -7,11 +7,9 @@
 #include <vector>
 #include <fstream>
 #include <string>
-#include <stdlib.h>
+#include <cstdlib>
 //********************************************************
 #include <GL/glut.h>
-
-
 #ifndef STB_IMAGE_WRITE_IMPLEMENTATION
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"
@@ -41,7 +39,7 @@ struct Point3D {
 Point3D<double> pointTemp, barycentre;
 vector<Point3D<double> > nuage;
 double Xmin, Ymin, Zmin, Xmax, Ymax, Zmax;
-bool heatmap_mode = false;
+bool heatmap_mode = true;
 
 //*********************************************
 //fonctions d'affichage des données avec GLUT
@@ -64,7 +62,7 @@ void SaveFrameBufferAsImage();
 int WINDOW_WIDTH = 640;
 int WINDOW_HEIGHT = 400;
 float ANGLE = 92;
-float SPEED = .2;
+float SPEED = 10;
 char AXIS = 'y';
 int PERSPECTIVE = 60;
 double SCALE = 300;
@@ -126,9 +124,18 @@ void ComputeTriangles() {
                 colors[i][j][2] /= numberOfTriangles[i][j];
 
                 float norm = (heights[i][j] - Zmin) / (Zmax - Zmin);
-                heatmapColors[i][j][0] = norm;
-                heatmapColors[i][j][1] = 0;
-                heatmapColors[i][j][2] = 1 - norm;
+
+                if (norm < 0.5) {
+                    // Interpolation du vert au bleu
+                    heatmapColors[i][j][0] = 0; // R reste à 0
+                    heatmapColors[i][j][1] = 2 * (0.5 - norm); // G diminue
+                    heatmapColors[i][j][2] = 2 * norm; // B augmente
+                } else {
+                    // Interpolation du bleu au rouge
+                    heatmapColors[i][j][0] = 2 * (norm - 0.5); // R augmente
+                    heatmapColors[i][j][1] = 0; // G reste à 0
+                    heatmapColors[i][j][2] = 2 * (1 - norm); // B diminue
+                }
             }
         }
     }
@@ -279,7 +286,7 @@ void Display() {
 
 
     DrawCenterPoint();
-    DrawPointCloud();
+    //DrawPointCloud();
     DrawBoundingBox();
     DrawTriangles();
 
@@ -308,8 +315,9 @@ void Reshape(int width, int height) {
 }
 
 void Idle() {
+    SaveFrameBufferAsImage();
     ANGLE = ANGLE + SPEED;
-    if (ANGLE > 360) ANGLE = 0;
+    if (ANGLE > 360 + SPEED + 92 -1) { exit(0); };
     glutPostRedisplay();
 }
 
@@ -413,7 +421,7 @@ void SaveFrameBufferAsImage() {
     }
 
     // Générer le nom du fichier
-    const std::string filename = PROJECT_PATH + std::to_string(imageCounter++) + ".png";
+    const std::string filename = PROJECT_PATH + "pic_mean/" + std::to_string(imageCounter++) + ".png";
 
     // Sauvegarder l'image
     stbi_write_png(filename.c_str(), width, height, 3, flippedPixels.data(), width * 3);

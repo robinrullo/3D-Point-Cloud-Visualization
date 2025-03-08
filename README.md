@@ -18,7 +18,8 @@ utilise OpenGL et GLUT pour le rendu graphique et permet d'interagir avec la vis
 
 ## 📸 Aperçu
 
-![Démonstration](result.gif)
+![Démonstration](mean.gif)
+![Démonstration Carte de chaleur](heatmap.gif)
 
 ---
 
