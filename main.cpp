@@ -59,14 +59,14 @@ void ShowInfos();
 void SaveFrameBufferAsImage();
 
 // VUE
-int WINDOW_WIDTH = 640;
-int WINDOW_HEIGHT = 400;
+int WINDOW_WIDTH = 800;
+int WINDOW_HEIGHT = 600;
 float ANGLE = 92;
 float SPEED = .2;
 char AXIS = 'y';
-int PERSPECTIVE = 60;
-double SCALE = 300;
-int NUMBER_OF_TRIANGLES = 60;
+int PERSPECTIVE = 20;
+double SCALE = 3000;
+int NUMBER_OF_TRIANGLES = 100;
 
 int nX = 0, nY = 0;
 float tileSizeX = 0, tileSizeY = 0;
@@ -286,7 +286,7 @@ void Display() {
 
 
     DrawCenterPoint();
-    //DrawPointCloud();
+    DrawPointCloud();
     DrawBoundingBox();
     DrawTriangles();
 
@@ -501,8 +501,10 @@ void LoadPointCloud(const string &filename) {
 }
 
 int main(int argc, char **argv) {
+    // st-helens.xyz
+    // st-helens.las.segmented.subsampled.xyz
     LoadPointCloud(
-        PROJECT_PATH + "st-helens.las.segmented.subsampled.xyz");
+        PROJECT_PATH + "st-helens.xyz");
     ComputeTriangles();
 
     Init(&argc, argv);

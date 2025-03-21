@@ -45,6 +45,28 @@ Sous MacOS, utilisez Homebrew :
 brew install freeglut
 ```
 
+Modifiez le chemin du projet dans le fichier [main.cpp (ligne 20)](./main.cpp#L20)
+
+### 🚀 Compilation
+Pour compiler le projet, exécutez la commande suivante :
+
+```bash
+# Créer le dossier de compilation
+mkdir build
+# Créer le cache de CMake
+cmake -DCMAKE_BUILD_TYPE=Release -S . -B build
+# Compiler le projet
+cmake --build build
+```
+
+### 🚦 Exécution
+
+Pour exécuter le programme, utilisez la commande suivante :
+
+```bash
+./build/generation_enrichissement_environnement2d3d
+```
+
 ## 🎮 Contrôles
 
 | Touche | Action                                       |
@@ -65,7 +87,7 @@ brew install freeglut
 ## 📍 Chargement des Données
 
 Le programme charge un fichier ASCII contenant les coordonnées (x, y, z), ainsi que les couleurs (r, g, b) de chaque
-point. Ces données sont stockées dans une structure Point3D<double>.
+point. Ces données sont stockées dans une structure Point3D\<double\>.
 
 ## 🔺 Génération des Triangles
 
